@@ -1,0 +1,39 @@
+﻿version: 3
+
+vars:
+  FILE: ubuntu-24.10-preinstalled-server-arm64+raspi.img.xz
+  URL: "https://cdimage.ubuntu.com/releases/24.10/release/{{ .FILE }}"
+
+dotenv:
+  - .env
+
+tasks:
+  download:
+    cmds:
+      - wget {{ .URL }}
+
+  copy:
+    cmds:
+      - xz -d < {{ .FILE }} | sudo dd bs=100M of=${USB} status=progress
+
+  mount:
+    requires:
+      vars: [USB]
+    cmds:
+      - mkdir -p /tmp/pi-disk
+      - "sudo mount -t drvfs d: /tmp/pi-disk -o uid=$(id -u $USER),gid=$(id -g $USER),metadata"
+      # - sudo mount ${USB} /tmp/pi-disk
+
+  copy-user-data:
+    cmds:
+      - cp user-data /tmp/pi-disk/
+
+  unmount:
+    cmds:
+      - umount /tmp/pi-disk
+
+  write-user-data-to-usb:
+    cmds:
+      - task: mount
+      - task: copy-user-data
+      - task: umount
