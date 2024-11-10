@@ -30,7 +30,7 @@ tasks:
 
   unmount:
     cmds:
-      - umount /tmp/pi-disk
+      - sudo umount /tmp/pi-disk
 
   write-user-data-to-usb:
     cmds:

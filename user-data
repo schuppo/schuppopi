@@ -1,11 +1,22 @@
 ﻿#cloud-config
-
+manage_etc_hosts: true
+packages:
+- avahi-daemon
+apt:
+  conf: |
+    Acquire {
+      Check-Date "false";
+    };
+timezone: Europe/Berlin
 ssh_pwauth: false
 users:
   - name: schuppo
-    groups: [sudo]
+    groups: users,adm,dialout,audio,netdev,video,plugdev,cdrom,games,input,gpio,spi,i2c,render,sudo
+    shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
     ssh_import_id: gh:schuppo
 runcmd:
  - printf "schuppopi-$(openssl rand -hex 3)" > /etc/hostname
  - printf "Ubuntu 24.10 LTS \nIP - $(hostname -I)\n" > /etc/issue
+ - localectl set-x11-keymap "de" pc105
+ - setupcon -k --force || true
