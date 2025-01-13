@@ -1,8 +1,11 @@
 ﻿version: 3
 
 vars:
-  FILE: ubuntu-24.10-preinstalled-server-arm64+raspi.img.xz
-  URL: "https://cdimage.ubuntu.com/releases/24.10/release/{{ .FILE }}"
+  VERSION: 24.04
+  PATCH: 1
+  FILE: ubuntu-{{ .VERSION }}.{{ .PATCH }}-preinstalled-server-arm64+raspi.img
+  URL: "https://cdimage.ubuntu.com/releases/{{ .VERSION }}/release/{{ .FILE }}.xz"
+  MOUNT_DIR: mnt
 
 dotenv:
   - .env
@@ -12,28 +15,54 @@ tasks:
     cmds:
       - wget {{ .URL }}
 
+  decompress:
+    cmds:
+      - xz -d < {{ .FILE }}.xz > {{ .FILE }}
   copy:
     cmds:
       - xz -d < {{ .FILE }} | sudo dd bs=100M of=${USB} status=progress
 
   mount:
-    requires:
-      vars: [USB]
     cmds:
-      - mkdir -p /tmp/pi-disk
-      - "sudo mount -t drvfs d: /tmp/pi-disk -o uid=$(id -u $USER),gid=$(id -g $USER),metadata"
-      # - sudo mount ${USB} /tmp/pi-disk
+      - hdiutil attach {{ .FILE }} -mountroot {{ .MOUNT_DIR }}
 
   copy-user-data:
     cmds:
-      - cp user-data /tmp/pi-disk/
+      - cp user-data.yml {{ .MOUNT_DIR }}/user-data
 
   unmount:
     cmds:
-      - sudo umount /tmp/pi-disk
+      - hdiutil detach {{ .MOUNT_DIR }}/system-boot
+
+  copy-kernel:
+    cmds:
+      - cp {{ .MOUNT_DIR }}/system-boot/vmlinuz kernels/
+      - cp {{ .MOUNT_DIR }}/system-boot/initrd.img kernels/
+      - cp {{ .MOUNT_DIR }}/system-boot/bcm2711-rpi-4-b.dtb kernels/
 
   write-user-data-to-usb:
     cmds:
       - task: mount
       - task: copy-user-data
       - task: umount
+
+  resize-image:
+    cmds:
+      - qemu-img resize -f raw {{ .FILE }} 4G
+
+  qemu:
+    cmds:
+      - >
+        qemu-system-aarch64 
+        -machine raspi4b
+        -cpu cortex-a72 
+        -smp 4 
+        -nographic
+        -kernel kernels/vmlinuz 
+        -initrd kernels/initrd.img 
+        -append "root=/dev/vda2 rootfstype=ext4 rw panic=0 console=ttyAMA0" 
+        -device sd-card,drive=mydrive 
+        -drive id=mydrive,if=none,format=raw,file={{ .FILE }}
+        -netdev user,id=mynet,hostfwd=tcp::2222-:22 
+        -device usb-net,netdev=mynet 
+        -monitor telnet:127.0.0.1:5555,server,nowait

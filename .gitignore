@@ -1,1 +1,6 @@
 ﻿.env
+*.img
+*.xz
+/.idea
+!/kernels/.gitkeep
+/kernels/*
